@@ -1,17 +1,22 @@
 #include "boost/container_hash/hash.hpp"
 #include "clhash.h"
+#include "hybrid_hash.h"
 #include <algorithm>
 #include <benchmark/benchmark.h>
 #include <iostream>
 #include <iterator>
 #include <random>
 #include <stdexcept>
+#include <cstdlib>
+
+#define XXH_INLINE_ALL
+#include "xxhash.h"
 
 class CharGenerator {
   public:
     std::string operator()(const size_t len) {
         std::string str(len, 0);
-        for (auto idx = 0; idx < len; ++idx) { str[idx] = valid_characters[rgn() % N]; }
+        for (size_t idx = 0; idx < len; ++idx) { str[idx] = valid_characters[rgn() % N]; }
         std::cout << "Generated random string: " << str << "\n";
         return str;
     }
@@ -37,21 +42,21 @@ std::string generate_random_string() {
 
 const std::string test_string = generate_random_string();
 
-// hash functions
+// std::hash benchmark
 void std_hash_string(benchmark::State &state) {
     std::hash<std::string> h;
     for (auto _ : state) { benchmark::DoNotOptimize(h(test_string)); }
 }
-// Register the function as a benchmark
+
 BENCHMARK(std_hash_string);
 
+// clhash benchmark
 void clhash_string(benchmark::State &state) {
-    lemire::clhasher clhash;
+    util::CLHash clhash;
     for (auto _ : state) {
         benchmark::DoNotOptimize(clhash(test_string.data(), test_string.size()));
     }
 }
-// Register the function as a benchmark
 BENCHMARK(clhash_string);
 
 void boost_hash_string(benchmark::State &state) {
@@ -60,5 +65,33 @@ void boost_hash_string(benchmark::State &state) {
 }
 // Register the function as a benchmark
 BENCHMARK(boost_hash_string);
+
+void hybrid_hash_string(benchmark::State &state) {
+    util::HybridHash h;
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(h(test_string));
+    }
+}
+// Register the function as a benchmark
+BENCHMARK(hybrid_hash_string);
+
+// xxHash
+void xxhash_string(benchmark::State &state) {
+    unsigned long long const seed = 0;
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(XXH64(test_string.data(), test_string.size(), seed));
+    }
+}
+// Register the function as a benchmark
+BENCHMARK(xxhash_string);
+
+// FarmHash
+void farmhash_string(benchmark::State &state) {
+    for (auto _ : state) {
+        benchmark::DoNotOptimize(util::Hash(test_string.data(), test_string.size()));
+    }
+}
+BENCHMARK(farmhash_string);
+
 
 BENCHMARK_MAIN();
